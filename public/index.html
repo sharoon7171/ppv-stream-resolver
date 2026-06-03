@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PPV Stream Resolver</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+      --bg: #0f1114;
+      --surface: #181b21;
+      --border: #2a3038;
+      --text: #e6eaf0;
+      --muted: #8b949e;
+      --accent: #3d7dd6;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    .head h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .controls label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .row-grow { flex: 1; min-width: 0; }
+
+    input, button, textarea {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 8px 10px;
+    }
+
+    input:focus, textarea:focus, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 0;
+    }
+
+    button {
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      background: #22262e;
+    }
+
+    button:hover:not(:disabled) {
+      background: #2a3038;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: #356ec0;
+    }
+
+    .player {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .player-frame {
+      flex: 1;
+      min-height: 240px;
+      background: #000;
+      border: 1px solid var(--border);
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    .output {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .output.show { display: flex; }
+
+    .output label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .output textarea {
+      resize: none;
+      min-height: 56px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+
+    .status {
+      margin: 0;
+      padding-top: 4px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 640px) {
+      .row { flex-direction: column; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="head">
+      <h1>PPV Stream Resolver</h1>
+      <p>Resolve a ppv.to live URL and play through the local HLS proxy.</p>
+    </header>
+
+    <section class="controls">
+      <label for="path">Stream URL</label>
+      <div class="row">
+        <input class="row-grow" id="path" type="url" spellcheck="false" value="https://ppv.to/live/247-spongebob-squarepants" placeholder="https://ppv.to/live/…">
+        <button class="primary" id="run" type="button">Resolve and play</button>
+      </div>
+    </section>
+
+    <section class="player">
+      <div class="player-frame">
+        <video id="video" controls playsinline></video>
+      </div>
+    </section>
+
+    <section class="output" id="linkBox">
+      <label for="proxied">Proxied HLS URL</label>
+      <div class="row">
+        <textarea class="row-grow" id="proxied" readonly></textarea>
+        <button type="button" id="copy">Copy</button>
+      </div>
+    </section>
+
+    <p class="status" id="status">Ready.</p>
+  </div>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id)
+    const video = $('video')
+    const status = $('status')
+    const btn = $('run')
+    const pathInput = $('path')
+    const linkBox = $('linkBox')
+    const proxied = $('proxied')
+    const copyBtn = $('copy')
+    let hls
+
+    const stop = () => {
+      if (hls) {
+        hls.destroy()
+        hls = null
+      }
+      video.pause()
+    }
+
+    const hideLink = () => {
+      linkBox.classList.remove('show')
+      proxied.value = ''
+    }
+
+    const showLink = (url) => {
+      proxied.value = url
+      linkBox.classList.add('show')
+    }
+
+    const post = async (path, body, ms = 60000) => {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), ms)
+      try {
+        const r = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        })
+        const ct = r.headers.get('content-type') || ''
+        if (!ct.includes('application/json')) throw new Error(`unexpected response (${r.status})`)
+        return await r.json()
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+
+    const play = (src, label) => {
+      stop()
+      status.textContent = label
+      if (!window.Hls?.isSupported()) {
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src
+          video.play().catch(() => {})
+        }
+        return
+      }
+      hls = new Hls({
+        enableWorker: true,
+        liveDurationInfinity: true,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 6,
+        maxLiveSyncPlaybackRate: 1,
+        backBufferLength: 60,
+        startPosition: -1,
+        fragLoadingTimeOut: 60000,
+        manifestLoadingTimeOut: 30000,
+        levelLoadingTimeOut: 30000,
+      })
+      hls.on(Hls.Events.ERROR, (_, d) => {
+        if (!d.fatal) return
+        status.textContent = `HLS ${d.type}: ${d.details}`
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad()
+      })
+      hls.attachMedia(video)
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {})
+      })
+      hls.loadSource(src)
+    }
+
+    copyBtn.onclick = async () => {
+      if (!proxied.value) return
+      await navigator.clipboard.writeText(proxied.value)
+      status.textContent = 'Copied proxied link'
+    }
+
+    btn.onclick = async () => {
+      const contentPath = pathInput.value.trim()
+      if (!contentPath) return
+      btn.disabled = true
+      hideLink()
+      stop()
+      status.textContent = 'Resolving stream…'
+      try {
+        const data = await post('/api/stream', { url: contentPath })
+        if (!data.ok) {
+          status.textContent = `${data.stage || 'error'}: ${data.error || 'failed'}`
+          return
+        }
+        if (!data.proxiedUrl) throw new Error('missing proxied url')
+        showLink(data.proxiedUrl)
+        play(data.proxiedUrl, `Playing ${data.contentPath}`)
+      } catch (e) {
+        stop()
+        status.textContent = e.name === 'AbortError' ? 'Request timed out' : String(e.message || e)
+      } finally {
+        btn.disabled = false
+      }
+    }
+  </script>
+</body>
+</html>
