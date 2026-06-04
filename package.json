@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch lib/http.js",
-    "start": "node lib/http.js"
+    "dev": "node --watch lib/server.js",
+    "start": "node lib/server.js"
   },
   "dependencies": {
     "happy-dom": "^20.0.10",
