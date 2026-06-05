@@ -1,5 +1,5 @@
-import { API_BASE, USER_AGENT } from './constants.js'
-import { resolveEmbedStreamUrl } from './pooembed/fetch-decrypt.js'
+import { API_BASE, USER_AGENT } from '../config.js'
+import { resolveEmbedStreamUrl } from '../embed/decrypt.js'
 
 const fail = (stage, error, extra = {}) => ({ ok: false, stage, error, ...extra })
 

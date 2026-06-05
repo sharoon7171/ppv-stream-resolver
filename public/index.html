@@ -3,320 +3,346 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Resolve ppv.to live stream URLs to playable HLS m3u8 links.">
   <title>PPV Stream Resolver</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
   <style>
     :root {
       color-scheme: dark;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-      line-height: 1.4;
       --bg: #0f1114;
-      --surface: #181b21;
-      --border: #2a3038;
+      --panel: #181b21;
+      --line: #2a3038;
       --text: #e6eaf0;
       --muted: #8b949e;
       --accent: #3d7dd6;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
-    html, body {
+    html {
       height: 100%;
-      margin: 0;
     }
 
     body {
+      margin: 0;
+      min-height: 100%;
       background: var(--bg);
       color: var(--text);
-      display: flex;
-      flex-direction: column;
+      font: 14px/1.5 system-ui, -apple-system, sans-serif;
     }
 
-    .page {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      max-width: 1200px;
-      width: 100%;
+    .layout {
+      width: min(1080px, 100%);
       margin: 0 auto;
-      padding: 16px;
+      padding: 20px 16px 24px;
+      display: grid;
+      grid-template-rows: auto auto minmax(320px, 1fr) auto;
       gap: 16px;
+      min-height: 100vh;
     }
 
-    .head h1 {
-      margin: 0 0 4px;
-      font-size: 18px;
+    .title {
+      margin: 0;
+      font-size: 20px;
       font-weight: 600;
     }
 
-    .head p {
-      margin: 0;
+    .subtitle {
+      margin: 4px 0 0;
       color: var(--muted);
       font-size: 13px;
     }
 
-    .controls label {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 13px;
-      font-weight: 500;
+    .subtitle a {
+      color: var(--accent);
+      text-decoration: none;
     }
 
-    .row {
-      display: flex;
+    .subtitle a:hover {
+      text-decoration: underline;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
       gap: 8px;
-      align-items: stretch;
     }
 
-    .row-grow { flex: 1; min-width: 0; }
-
-    input, button, textarea {
-      font: inherit;
-      color: inherit;
-      border: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    input, textarea {
+    #url {
       width: 100%;
-      padding: 8px 10px;
+      min-width: 0;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
     }
 
-    input:focus, textarea:focus, button:focus-visible {
+    #url:focus {
       outline: 2px solid var(--accent);
       outline-offset: 0;
+      border-color: var(--accent);
     }
 
-    button {
-      padding: 8px 14px;
+    #resolve {
+      padding: 11px 18px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
-      background: #22262e;
     }
 
-    button:hover:not(:disabled) {
-      background: #2a3038;
-    }
-
-    button:disabled {
+    #resolve:disabled {
       opacity: 0.55;
-      cursor: not-allowed;
+      cursor: wait;
     }
 
-    button.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    button.primary:hover:not(:disabled) {
-      background: #356ec0;
-    }
-
-    .player {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .player-frame {
-      flex: 1;
-      min-height: 240px;
+    .stage {
+      border: 1px solid var(--line);
+      border-radius: 8px;
       background: #000;
-      border: 1px solid var(--border);
+      overflow: hidden;
+      min-height: 320px;
     }
 
-    video {
+    #player {
+      display: block;
       width: 100%;
       height: 100%;
-      display: block;
+      min-height: 320px;
       object-fit: contain;
+      background: #000;
+    }
+
+    .foot {
+      display: grid;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    #state {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      word-break: break-word;
     }
 
     .output {
       display: none;
-      flex-direction: column;
-      gap: 6px;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
     }
 
-    .output.show { display: flex; }
-
-    .output label {
-      font-size: 13px;
-      font-weight: 500;
+    .output.visible {
+      display: grid;
     }
 
-    .output textarea {
-      resize: none;
-      min-height: 56px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      line-height: 1.45;
-      word-break: break-all;
-    }
-
-    .status {
-      margin: 0;
-      padding-top: 4px;
-      border-top: 1px solid var(--border);
+    #hlsUrl {
+      width: 100%;
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
       color: var(--muted);
-      font-size: 12px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    #copy {
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
       white-space: nowrap;
     }
 
-    @media (max-width: 640px) {
-      .row { flex-direction: column; }
-      button { width: 100%; }
+    @media (max-width: 720px) {
+      .toolbar,
+      .output {
+        grid-template-columns: 1fr;
+      }
+
+      #resolve,
+      #copy {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header class="head">
-      <h1>PPV Stream Resolver</h1>
-      <p>Resolve a ppv.to live URL and play through the local HLS proxy.</p>
+  <div class="layout">
+    <header>
+      <h1 class="title">PPV Stream Resolver</h1>
+      <p class="subtitle">Copy a live page URL from <a href="https://ppv.to" target="_blank" rel="noopener noreferrer">ppv.to</a> and resolve it below.</p>
     </header>
 
-    <section class="controls">
-      <label for="path">Stream URL</label>
-      <div class="row">
-        <input class="row-grow" id="path" type="url" spellcheck="false" value="https://ppv.to/live/247-spongebob-squarepants" placeholder="https://ppv.to/live/…">
-        <button class="primary" id="run" type="button">Resolve and play</button>
-      </div>
-    </section>
+    <div class="toolbar">
+      <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://ppv.to/live/…">
+      <button id="resolve" type="button">Resolve</button>
+    </div>
 
-    <section class="player">
-      <div class="player-frame">
-        <video id="video" controls playsinline></video>
-      </div>
-    </section>
+    <div class="stage">
+      <video id="player" controls playsinline></video>
+    </div>
 
-    <section class="output" id="linkBox">
-      <label for="proxied">Proxied HLS URL</label>
-      <div class="row">
-        <textarea class="row-grow" id="proxied" readonly></textarea>
-        <button type="button" id="copy">Copy</button>
+    <div class="foot">
+      <p id="state">Ready</p>
+      <div class="output" id="output">
+        <input id="hlsUrl" type="text" readonly tabindex="-1">
+        <button id="copy" type="button">Copy</button>
       </div>
-    </section>
-
-    <p class="status" id="status">Ready.</p>
+    </div>
   </div>
 
   <script type="module">
-    const $ = (id) => document.getElementById(id)
-    const video = $('video')
-    const status = $('status')
-    const btn = $('run')
-    const pathInput = $('path')
-    const linkBox = $('linkBox')
-    const proxied = $('proxied')
-    const copyBtn = $('copy')
-    let hls
+    const urlInput = document.getElementById('url')
+    const resolveBtn = document.getElementById('resolve')
+    const player = document.getElementById('player')
+    const state = document.getElementById('state')
+    const output = document.getElementById('output')
+    const hlsUrl = document.getElementById('hlsUrl')
+    const copyBtn = document.getElementById('copy')
 
-    const stop = () => {
+    let hls = null
+
+    function setState(message) {
+      state.textContent = message
+    }
+
+    function clearOutput() {
+      output.classList.remove('visible')
+      hlsUrl.value = ''
+    }
+
+    function showOutput(value) {
+      hlsUrl.value = value
+      output.classList.add('visible')
+    }
+
+    function stopPlayback() {
       if (hls) {
         hls.destroy()
         hls = null
       }
-      video.pause()
+      player.pause()
+      player.removeAttribute('src')
+      player.load()
     }
 
-    const hideLink = () => {
-      linkBox.classList.remove('show')
-      proxied.value = ''
-    }
-
-    const showLink = (url) => {
-      proxied.value = url
-      linkBox.classList.add('show')
-    }
-
-    const post = async (path, body, ms = 60000) => {
-      const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), ms)
+    async function requestResolve(streamUrl) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 60000)
       try {
-        const r = await fetch(path, {
+        const response = await fetch('/api/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: ctrl.signal,
+          body: JSON.stringify({ url: streamUrl }),
+          signal: controller.signal,
         })
-        const ct = r.headers.get('content-type') || ''
-        if (!ct.includes('application/json')) throw new Error(`unexpected response (${r.status})`)
-        return await r.json()
+        const type = response.headers.get('content-type') || ''
+        if (!type.includes('application/json')) {
+          throw new Error(`Unexpected response ${response.status}`)
+        }
+        return await response.json()
       } finally {
-        clearTimeout(timer)
+        clearTimeout(timeout)
       }
     }
 
-    const play = (src, label) => {
-      stop()
-      status.textContent = label
-      if (!window.Hls?.isSupported()) {
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = src
-          video.play().catch(() => {})
-        }
+    function startPlayback(source, label) {
+      stopPlayback()
+      setState(label)
+
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          liveDurationInfinity: true,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 6,
+          maxLiveSyncPlaybackRate: 1,
+          backBufferLength: 60,
+          startPosition: -1,
+          fragLoadingTimeOut: 60000,
+          manifestLoadingTimeOut: 30000,
+          levelLoadingTimeOut: 30000,
+        })
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (!data.fatal) return
+          setState(`${data.type}: ${data.details}`)
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad()
+        })
+        hls.attachMedia(player)
+        hls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}))
+        hls.loadSource(source)
         return
       }
-      hls = new Hls({
-        enableWorker: true,
-        liveDurationInfinity: true,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
-        maxLiveSyncPlaybackRate: 1,
-        backBufferLength: 60,
-        startPosition: -1,
-        fragLoadingTimeOut: 60000,
-        manifestLoadingTimeOut: 30000,
-        levelLoadingTimeOut: 30000,
-      })
-      hls.on(Hls.Events.ERROR, (_, d) => {
-        if (!d.fatal) return
-        status.textContent = `HLS ${d.type}: ${d.details}`
-        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad()
-      })
-      hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {})
-      })
-      hls.loadSource(src)
-    }
 
-    copyBtn.onclick = async () => {
-      if (!proxied.value) return
-      await navigator.clipboard.writeText(proxied.value)
-      status.textContent = 'Copied proxied link'
-    }
-
-    btn.onclick = async () => {
-      const contentPath = pathInput.value.trim()
-      if (!contentPath) return
-      btn.disabled = true
-      hideLink()
-      stop()
-      status.textContent = 'Resolving stream…'
-      try {
-        const data = await post('/api/stream', { url: contentPath })
-        if (!data.ok) {
-          status.textContent = `${data.stage || 'error'}: ${data.error || 'failed'}`
-          return
-        }
-        if (!data.proxiedUrl) throw new Error('missing proxied url')
-        showLink(data.proxiedUrl)
-        play(data.proxiedUrl, `Playing ${data.contentPath}`)
-      } catch (e) {
-        stop()
-        status.textContent = e.name === 'AbortError' ? 'Request timed out' : String(e.message || e)
-      } finally {
-        btn.disabled = false
+      if (player.canPlayType('application/vnd.apple.mpegurl')) {
+        player.src = source
+        player.play().catch(() => {})
       }
     }
+
+    async function runResolve() {
+      const streamUrl = urlInput.value.trim()
+      if (!streamUrl) {
+        setState('Paste a ppv.to URL first.')
+        urlInput.focus()
+        return
+      }
+
+      resolveBtn.disabled = true
+      clearOutput()
+      stopPlayback()
+      setState('Resolving…')
+
+      try {
+        const result = await requestResolve(streamUrl)
+        if (!result.ok) {
+          setState(`${result.stage || 'error'}: ${result.error || 'failed'}`)
+          return
+        }
+        if (!result.proxiedUrl) {
+          throw new Error('Missing proxied URL')
+        }
+        showOutput(result.proxiedUrl)
+        startPlayback(result.proxiedUrl, result.contentPath || 'Playing')
+      } catch (error) {
+        stopPlayback()
+        setState(error.name === 'AbortError' ? 'Request timed out' : String(error.message || error))
+      } finally {
+        resolveBtn.disabled = false
+        urlInput.focus()
+      }
+    }
+
+    resolveBtn.addEventListener('click', runResolve)
+
+    urlInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        runResolve()
+      }
+    })
+
+    copyBtn.addEventListener('click', async () => {
+      if (!hlsUrl.value) return
+      await navigator.clipboard.writeText(hlsUrl.value)
+      setState('Proxied URL copied')
+    })
+
+    urlInput.focus()
   </script>
 </body>
 </html>

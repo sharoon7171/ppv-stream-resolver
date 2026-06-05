@@ -1,5 +1,5 @@
-import { upstreamFetch } from './pooembed/upstream.js'
-import { isM3u8Resource, isPoisonPlaylist, shouldProxyPlaylistUri } from './pooembed/media.js'
+import { isM3u8Resource, isPoisonPlaylist, shouldProxyPlaylistUri } from '../embed/media.js'
+import { upstreamFetch } from '../embed/upstream.js'
 
 const PROXY = '/api/hls'
 
@@ -135,7 +135,7 @@ async function proxySegment(targetUrl, embedPath) {
   return { status: 200, headers: segmentHeaders(), body: segmentBody(upstream.body) }
 }
 
-export async function proxyHlsRequest(targetUrl, embedPath, origin) {
+async function proxyHlsRequest(targetUrl, embedPath, origin) {
   if (!isM3u8Resource(targetUrl)) return proxySegment(targetUrl, embedPath)
 
   const upstream = await upstreamFetch(targetUrl, embedPath)

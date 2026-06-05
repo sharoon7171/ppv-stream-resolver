@@ -1,5 +1,5 @@
 import { Impit } from 'impit'
-import { EMBED_ORIGIN, USER_AGENT } from '../constants.js'
+import { EMBED_ORIGIN, USER_AGENT } from '../config.js'
 import {
   isM3u8Resource,
   isPlayablePlaylist,

@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { writeProxyHlsResponse } from './hls.js'
-import { resolveStream } from './resolve.js'
+import { writeProxyHlsResponse } from '../hls/proxy.js'
+import { resolveStream } from '../stream/resolve.js'
 
-const indexPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../public/index.html')
+const indexPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../public/index.html')
 
-export function requestOrigin(req) {
+function requestOrigin(req) {
   const host = req.headers.host || '127.0.0.1:8788'
   const forwarded = req.headers['x-forwarded-proto']
   const proto =

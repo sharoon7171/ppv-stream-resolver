@@ -1,4 +1,4 @@
-import { EMBED_ORIGIN } from '../constants.js'
+import { EMBED_ORIGIN } from '../config.js'
 
 const EMBED_HOST = new URL(EMBED_ORIGIN).hostname
 const NON_MEDIA_EXT = /\.(html|php|js|css|svg)(\?|$)/i

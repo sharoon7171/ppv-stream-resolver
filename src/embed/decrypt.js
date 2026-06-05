@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Window } from 'happy-dom'
-import { EMBED_ORIGIN, USER_AGENT } from '../constants.js'
+import { EMBED_ORIGIN, USER_AGENT } from '../config.js'
 
 const WASM_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'wasm')
 const WASM_JS = pathToFileURL(path.join(WASM_DIR, 'gasm.js')).href
@@ -18,7 +18,7 @@ function encodeFetchBody(embedPath) {
   return Buffer.concat([Buffer.from([0x0a, bytes.length]), bytes])
 }
 
-export async function postEmbedFetch(embedPath) {
+async function postEmbedFetch(embedPath) {
   const res = await fetch(`${EMBED_ORIGIN}/fetch`, {
     method: 'POST',
     headers: {
@@ -73,13 +73,11 @@ function extractUrl(memory, slug) {
   const matches = []
   let match = null
   while ((match = re.exec(text)) !== null) matches.push(match[0])
-  if (slug) {
-    return matches.find((url) => url.includes(`/${slug}/`)) || null
-  }
+  if (slug) return matches.find((url) => url.includes(`/${slug}/`)) || null
   return matches.at(-1) || null
 }
 
-export async function decryptStreamUrl(island, body, embedPath, slug) {
+async function decryptStreamUrl(island, body, embedPath, slug) {
   const saved = {
     fetch: globalThis.fetch,
     Request: globalThis.Request,
